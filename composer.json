@@ -1,0 +1,19 @@
+{
+  "name": "tekton/services",
+  "type": "library",
+  "license": "MIT",
+  "description": "Tekton Services is a project that tries to create easy to use components for integrating with popular third party services.",
+  "homepage": "https://gitlab.com/tekton/services",
+  "autoload": {
+    "psr-4": {
+      "Tekton\\Services\\": "src/"
+    }
+  },
+  "minimum-stability": "dev",
+  "require": {
+    "php": ">=7.0.0",
+    "tekton/support": "^1.0.0",
+    "madcoda/php-youtube-api": "^1.2",
+    "vinkla/instagram": "^5.0"
+  }
+}
