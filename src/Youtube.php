@@ -19,8 +19,13 @@ class Youtube {
     }
 
     function channel() {
-        return $this->cache->remember('services.youtube.channel', $this->config->refresh, function()  {
-            return $this->library->getChannelById($this->config->channel);
+        return $this->cache->remember('services.youtube.channel', $this->config->refresh, function() {
+            try {
+                return $this->library->getChannelById($this->config->channel);
+            }
+            catch (Exception $e) {
+                return '';
+            }
         });
     }
 
