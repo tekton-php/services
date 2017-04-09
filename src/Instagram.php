@@ -3,6 +3,7 @@
 use Vinkla\Instagram\Instagram as InstagramAPI;
 use DateTime;
 use InvalidArgumentException;
+use Exception;
 
 class Instagram {
 
@@ -31,19 +32,26 @@ class Instagram {
             throw new InvalidArgumentException('Max 50 images can be retrieved from Instagram in one request. You requested "'.$limit.'"');
         }
 
-        // Transient::clear('services.instagram.images');
+        // $this->cache->forget('services.instagram.images');
 
         // Load videos from cache
         $images = $this->cache->remember('services.instagram.images', $this->config->refresh, function() {
-            $result = $this->library->get($this->config->user);
-            $images = array();
+            // Try and get images from Instagram
+            try {
+                $result = $this->library->get($this->config->user);
+                $images = [];
 
-            foreach ($result as $image) {
-                $images[] = $this->simplify($image);
+                // Process result
+                foreach ($result as $image) {
+                    $images[] = $this->simplify($image);
+                }
+
+                // Return result
+                return $images;
             }
-
-            // Return result
-            return $images;
+            catch (Exception $e) {
+                return [];
+            }
         });
 
         // Only return the amount of images requested and not all in the cache
@@ -73,7 +81,10 @@ class Instagram {
         }
 
         return (object) array_merge($resolutions, array(
-            'caption' => $image['caption']['text'],
+            'caption' => (object) [
+                'raw' => $image['caption']['text'],
+                'html' => $this->parse_hashtags(str_make_links($image['caption']['text'])),
+            ],
             'url' => $image['link'],
             'likes' => $image['likes']['count'],
             'date' => $date,
@@ -84,5 +95,9 @@ class Instagram {
                 'name' => $image['user']['full_name'],
             ),
         ));
+    }
+
+    function parse_hashtags($text) {
+        return preg_replace('/(\#)([^\s]+)/', ' <a href="https://www.instagram.com/explore/tags/$2">#$2</a> ', $text);
     }
 }
