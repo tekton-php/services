@@ -1,6 +1,6 @@
 <?php namespace Tekton\Services;
 
-use Madcoda\Youtube as YoutubeAPI;
+use Madcoda\Youtube\Youtube as YoutubeAPI;
 use DateTime;
 use DateInterval;
 use InvalidArgumentException;
@@ -32,37 +32,43 @@ class Youtube {
             throw new InvalidArgumentException('Max 50 videos can be retrieved from YouTube in one request. You requested "'.$limit.'"');
         }
 
-        // Transient::clear('services.youtube.videos');
+        // $this->cache->forget('services.youtube.videos');
+
         // Load videos from cache
         $videos = $this->cache->remember('services.youtube.videos', $this->config->refresh, function() {
-            // Get playlist
-            $playlist = $this->library->getPlaylistItemsByPlaylistIdAdvanced(array(
-                'playlistId' => $this->uploadsId(),
-                'maxResults' => 50,
-                'part' => 'contentDetails',
-            ));
+            try {
+                // Get playlist
+                $playlist = $this->library->getPlaylistItemsByPlaylistIdAdvanced(array(
+                    'playlistId' => $this->uploadsId(),
+                    'maxResults' => 50,
+                    'part' => 'contentDetails',
+                ));
 
-            // Abort if the "uploads" playlist isn't accessible
-            if (empty($playlist)) {
-                return array();
+                // Abort if the "uploads" playlist isn't accessible
+                if (empty($playlist)) {
+                    return array();
+                }
+
+                // Create a request to find information for each video
+                $ids = array();
+
+                foreach ($playlist as $video) {
+                    $ids[] = $video->contentDetails->videoId;
+                }
+
+                // Create a simpler object to work with
+                $result = $this->library->getVideosInfo($ids);
+                $videos = [];
+
+                foreach ($result as $video) {
+                    $videos[] = $this->simplify($video);
+                }
+
+                return $videos;
             }
-
-            // Create a request to find information for each video
-            $ids = array();
-
-            foreach ($playlist as $video) {
-                $ids[] = $video->contentDetails->videoId;
+            catch (Exception $e) {
+                return [];
             }
-
-            // Create a simpler object to work with
-            $result = $this->library->getVideosInfo($ids);
-            $videos = array();
-
-            foreach ($result as $video) {
-                $videos[] = $this->simplify($video);
-            }
-
-            return $videos;
         });
 
         // Only return the amount of videos request and not all in the cache
