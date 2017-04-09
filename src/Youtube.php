@@ -4,6 +4,7 @@ use Madcoda\Youtube\Youtube as YoutubeAPI;
 use DateTime;
 use DateInterval;
 use InvalidArgumentException;
+use Exception;
 
 class Youtube {
 
