@@ -4,41 +4,47 @@ use Vinkla\Instagram\Instagram as InstagramAPI;
 use DateTime;
 use InvalidArgumentException;
 use Exception;
+use Tekton\Support\Repository;
+use Illuminate\Cache\CacheManager;
 
-class Instagram {
-
+class Instagram
+{
     use \Tekton\Support\Traits\LibraryWrapper;
 
     protected $api;
     protected $config;
     protected $videos = array();
 
-    function __construct(array $config = []) {
-        $this->config = (object) $config;
-        $this->library = new InstagramAPI();
-        $this->cache = app('cache');
+    public function __construct(array $config = [], CacheManager $cache)
+    {
+        $this->config = new Repository($config);
+        $this->cache = $cache;
+        $this->library = new InstagramAPI($this->config->get('token'));
     }
 
-    function url() {
-        return $this->config->url;
+    public function url()
+    {
+        return $this->config->get('url');
     }
 
-    function user() {
-        return $this->config->user;
+    public function user()
+    {
+        return $this->config->get('user');
     }
 
-    function images($limit = 10) {
-        if ((int) $limit > 50) {
+    public function images($limit = 10)
+    {
+        if ((int) $limit > 20) {
             throw new InvalidArgumentException('Max 50 images can be retrieved from Instagram in one request. You requested "'.$limit.'"');
         }
 
         // $this->cache->forget('services.instagram.images');
 
         // Load videos from cache
-        $images = $this->cache->remember('services.instagram.images', $this->config->refresh, function() {
+        $images = $this->cache->remember('services.instagram.images', $this->config->get('refresh'), function() {
             // Try and get images from Instagram
             try {
-                $result = $this->library->get($this->config->user);
+                $result = $this->library->get();
                 $images = [];
 
                 // Process result
@@ -63,41 +69,30 @@ class Instagram {
         }
     }
 
-    function refresh() {
+    public function refresh()
+    {
         $this->clear();
     }
 
-    function clear() {
+    public function clear()
+    {
         $this->cache->forget('services.instagram.images');
     }
 
-    function simplify($image) {
+    public function simplify($image)
+    {
         $date = new DateTime();
-        $date->setTimestamp($image['created_time']);
-        $resolutions = array();
+        $date->setTimestamp($image->created_time);
 
-        foreach ($image['images'] as $key => $val) {
-            $resolutions[$key] = (object) $val;
-        }
+        $image->date = $date;
+        $image->caption->html = $this->parseHashtags(str_make_links($image->caption->text));
+        $image->url = $image->link;
 
-        return (object) array_merge($resolutions, array(
-            'caption' => (object) [
-                'raw' => $image['caption']['text'],
-                'html' => $this->parse_hashtags(str_make_links($image['caption']['text'])),
-            ],
-            'url' => $image['link'],
-            'likes' => $image['likes']['count'],
-            'date' => $date,
-            'type' => $image['type'],
-            'user' => (object) array(
-                'thumb' => $image['user']['profile_picture'],
-                'id' => $image['user']['id'],
-                'name' => $image['user']['full_name'],
-            ),
-        ));
+        return $image;
     }
 
-    function parse_hashtags($text) {
+    public function parseHashtags($text)
+    {
         return preg_replace('/(\#)([^\s]+)/', ' <a href="https://www.instagram.com/explore/tags/$2">#$2</a> ', $text);
     }
 }

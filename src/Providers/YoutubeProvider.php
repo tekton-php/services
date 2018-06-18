@@ -1,18 +1,21 @@
 <?php namespace Tekton\Services\Providers;
 
-use \Tekton\Services\Youtube;
+use Illuminate\Support\ServiceProvider;
+use Tekton\Services\Youtube;
 
-class YoutubeProvider extends \Tekton\Support\ServiceProvider {
-
-    function register() {
-        $this->config = app('config')->get('services.youtube');
-
-        $this->app->singleton('services.youtube', function() {
-            return new Youtube($this->config);
-        });
+class YoutubeProvider extends ServiceProvider
+{
+    function provides()
+    {
+        return ['services.youtube'];
     }
 
-    function boot() {
+    function register()
+    {
+        $this->app->singleton('services.youtube', function() {
+            $config = app('config')->get('services.youtube');
 
+            return new Youtube($config);
+        });
     }
 }

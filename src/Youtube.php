@@ -5,23 +5,29 @@ use DateTime;
 use DateInterval;
 use InvalidArgumentException;
 use Exception;
+use Tekton\Support\Repository;
+use Illuminate\Cache\CacheManager;
 
-class Youtube {
-
+class Youtube
+{
     use \Tekton\Support\Traits\LibraryWrapper;
 
     protected $config;
 
-    function __construct(array $config = []) {
-        $this->config = (object) $config;
-        $this->library = new YoutubeAPI(array('key' => $this->config->key));
-        $this->cache = app('cache');
+    public function __construct(array $config = [], CacheManager $cache)
+    {
+        $this->config = new Repository($config);
+        $this->library = new YoutubeAPI(array('key' => $this->config->get('key')));
+        $this->cache = $cache;
     }
 
-    function channel() {
-        return $this->cache->remember('services.youtube.channel', $this->config->refresh, function() {
+    public function channel()
+    {
+        // $this->cache->forget('services.youtube.channel');
+
+        return $this->cache->remember('services.youtube.channel', $this->config->get('refresh'), function() {
             try {
-                return $this->library->getChannelById($this->config->channel);
+                return $this->library->getChannelById($this->config->get('channel'));
             }
             catch (Exception $e) {
                 return '';
@@ -29,11 +35,13 @@ class Youtube {
         });
     }
 
-    function url() {
-        return $this->config->url;
+    public function url()
+    {
+        return $this->config->get('url');
     }
 
-    function videos($limit = 10) {
+    public function videos($limit = 10)
+    {
         if ((int) $limit > 50) {
             throw new InvalidArgumentException('Max 50 videos can be retrieved from YouTube in one request. You requested "'.$limit.'"');
         }
@@ -41,7 +49,7 @@ class Youtube {
         // $this->cache->forget('services.youtube.videos');
 
         // Load videos from cache
-        $videos = $this->cache->remember('services.youtube.videos', $this->config->refresh, function() {
+        $videos = $this->cache->remember('services.youtube.videos', $this->config->get('refresh'), function() {
             try {
                 // Get playlist
                 $playlist = $this->library->getPlaylistItemsByPlaylistIdAdvanced(array(
@@ -86,25 +94,30 @@ class Youtube {
         }
     }
 
-    function uploads($limit = 10) {
+    public function uploads($limit = 10)
+    {
         return $this->videos($limit);
     }
 
-    function uploadsId() {
+    public function uploadsId()
+    {
         $channel = $this->channel();
-        return $channel->contentDetails->relatedPlaylists->uploads;
+        return (empty($channel)) ? '' : $channel->contentDetails->relatedPlaylists->uploads;
     }
 
-    function refresh() {
+    public function refresh()
+    {
         return $this->clear();
     }
 
-    function clear() {
+    public function clear()
+    {
         $this->cache->forget('services.youtube.videos');
         $this->cache->forget('services.youtube.channel');
     }
 
-    function simplify($video) {
+    public function simplify($video)
+    {
         // Create duration string
         $start = new DateTime('@0'); // Unix epoch
         $start->add(new DateInterval($video->contentDetails->duration));
@@ -112,14 +125,17 @@ class Youtube {
 
         $date = new DateTime($video->snippet->publishedAt);
         $language = isset($video->snippet->defaultAudioLanguage) ? $video->snippet->defaultAudioLanguage : '';
-        $tags = isset($video->snippet->tags) ? $video->snippet->tags : array();
+        $tags = isset($video->snippet->tags) ? $video->snippet->tags : [];
+        $domain = $this->config->get('cookie', true) ? 'www.youtube.com' : 'www.youtube-nocookie.com';
 
         return (object) array(
+            'id' => $video->id,
             'thumb' => $video->snippet->thumbnails,
             'title' => $video->snippet->title,
             'tags' => $tags,
             'language' => $language,
-            'url' => 'https://www.youtube.com/watch?v='.$video->id,
+            'url' => $this->getUrl($video->id),
+            'embed' => $this->getEmbedUrl($video->id),
             'duration' => $duration,
             'date' => $date,
             'views' => $video->statistics->viewCount,
@@ -131,11 +147,25 @@ class Youtube {
         );
     }
 
-    function parse_id($url) {
+    public function getUrl($id)
+    {
+        return 'https://www.youtube.com/watch?='.$this->extractVideoId($id);
+    }
+
+    public function getEmbedUrl($id)
+    {
+        $domain = ($this->config->get('cookie', true)) ? 'youtube' : 'youtube-nocookie';
+        $related = ($this->config->get('related', false)) ? '?rel=0' : '';
+
+        return 'https://www.'.$domain.'.com/embed/'.$this->extractVideoId($id).$related;
+    }
+
+    public function extractVideoId($url)
+    {
         if (str_contains($url, 'http')) {
             return $this->library->parseVIdFromURL($url);
         }
 
-        return esc_attr($url);
+        return $url;
     }
 }

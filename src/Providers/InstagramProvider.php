@@ -1,18 +1,21 @@
 <?php namespace Tekton\Services\Providers;
 
-use \Tekton\Services\Instagram;
+use Illuminate\Support\ServiceProvider;
+use Tekton\Services\Instagram;
 
-class InstagramProvider extends \Tekton\Support\ServiceProvider {
-
-    function register() {
-        $this->config = app('config')->get('services.instagram');
-
-        $this->app->singleton('services.instagram', function() {
-            return new Instagram($this->config);
-        });
+class InstagramProvider extends ServiceProvider
+{
+    function provides()
+    {
+        return ['services.instagram'];
     }
 
-    function boot() {
+    function register()
+    {
+        $this->app->singleton('services.instagram', function() {
+            $config = app('config')->get('services.instagram');
 
+            return new Instagram($config);
+        });
     }
 }
